@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>采购Agent</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">采</div>
+          <div>
+            <h1>采购Agent</h1>
+            <p>服务费汇总、发票匹配、系统填报</p>
+          </div>
+        </div>
+
+        <div class="profile-panel">
+          <label>
+            当前用户
+            <input id="userName" value="经办人" />
+          </label>
+          <label>
+            角色
+            <select id="roleSelect">
+              <option value="operator">经办</option>
+              <option value="admin">管理员</option>
+            </select>
+          </label>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-view="workspace">批次工作台</button>
+          <button class="nav-item" data-view="history">历史批次</button>
+          <button class="nav-item admin-only" data-view="admin">管理员配置</button>
+        </nav>
+      </aside>
+
+      <main>
+        <section class="topbar">
+          <div>
+            <p class="eyebrow">Quarterly service fee billing</p>
+            <h2 id="pageTitle">批次工作台</h2>
+          </div>
+          <div class="service-state" id="serviceState">连接中</div>
+        </section>
+
+        <section class="view active" id="workspaceView">
+          <div class="layout-grid">
+            <section class="panel upload-panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>上传季度账单</h3>
+                  <p>按固定模板解析服务费明细，并匹配发票文件名中的发票号码。</p>
+                </div>
+              </div>
+              <form id="uploadForm" class="upload-form">
+                <fieldset class="period-picker">
+                  <legend>账期季度</legend>
+                  <div class="period-picker-grid">
+                    <label>
+                      年份
+                      <select name="period_year" required>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026" selected>2026</option>
+                        <option value="2027">2027</option>
+                        <option value="2028">2028</option>
+                      </select>
+                    </label>
+                    <label>
+                      季度
+                      <select name="period_quarter" required>
+                        <option value="Q1" selected>一季度</option>
+                        <option value="Q2">二季度</option>
+                        <option value="Q3">三季度</option>
+                        <option value="Q4">四季度</option>
+                      </select>
+                    </label>
+                  </div>
+                </fieldset>
+                <label>
+                  服务费 Excel
+                  <input name="service_excel" type="file" accept=".xlsx,.xlsm,.csv,.tsv" required />
+                </label>
+                <label>
+                  系统上传模板
+                  <input name="upload_template" type="file" accept=".xlsx,.csv" />
+                </label>
+                <label>
+                  公司架构/匹配表
+                  <input name="company_structure" type="file" accept=".xlsx,.xlsm" required />
+                  <span class="field-help">用于把门店归集到最新二级公司主体。</span>
+                </label>
+                <fieldset class="invoice-picker">
+                  <legend>发票材料</legend>
+                  <div class="invoice-mode-switch" role="tablist" aria-label="发票材料选择方式">
+                    <button type="button" class="invoice-mode active" data-invoice-mode="files" role="tab" aria-selected="true" aria-controls="invoiceFilesPanel">发票文件或压缩包</button>
+                    <button type="button" class="invoice-mode" data-invoice-mode="folder" role="tab" aria-selected="false" aria-controls="invoiceFolderPanel">发票根文件夹</button>
+                  </div>
+                  <div class="invoice-choice active" id="invoiceFilesPanel" data-invoice-panel="files" role="tabpanel">
+                    <label>
+                      选择发票文件或 zip
+                      <input name="invoices" type="file" accept=".pdf,.ofd,.jpg,.jpeg,.png,.tif,.tiff,.zip" multiple />
+                      <span class="field-help">可多选发票，也可上传包含多层目录的 zip。</span>
+                    </label>
+                  </div>
+                  <div class="invoice-choice" id="invoiceFolderPanel" data-invoice-panel="folder" role="tabpanel" hidden>
+                    <label>
+                      选择发票根文件夹
+                      <input name="invoices" type="file" webkitdirectory directory multiple disabled />
+                      <span class="field-help">选择最上层文件夹，系统会自动递归查找。</span>
+                    </label>
+                  </div>
+                </fieldset>
+                <button type="submit" class="primary-action">解析并生成批次</button>
+              </form>
+            </section>
+
+            <section class="panel" id="activeBatchPanel">
+              <div class="empty-state">
+                <h3>等待批次</h3>
+                <p>上传服务费文件和发票后，这里会展示汇总、异常、模板和提交状态。</p>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="historyView">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <h3>历史批次</h3>
+                <p>查看过往解析、审核和提交记录。</p>
+              </div>
+              <button id="refreshHistory" class="secondary-action">刷新</button>
+            </div>
+            <div id="historyList" class="history-list"></div>
+          </section>
+        </section>
+
+        <section class="view" id="adminView">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <h3>规则和模板配置</h3>
+                <p>维护字段别名、发票命名规则、系统模板列和测试 API 设置。</p>
+              </div>
+              <button id="saveConfig" class="primary-action">保存配置</button>
+            </div>
+            <div class="admin-grid">
+              <label>
+                配置 JSON
+                <textarea id="configEditor" spellcheck="false"></textarea>
+              </label>
+              <div class="config-notes">
+                <h4>当前维护项</h4>
+                <ul>
+                  <li>Excel 字段别名和必填字段</li>
+                  <li>发票号码文件名识别正则</li>
+                  <li>系统上传模板列顺序</li>
+                  <li>财务系统测试 API 连接配置</li>
+                </ul>
+                <p id="adminLockNotice"></p>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

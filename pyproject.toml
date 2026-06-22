@@ -1,0 +1,11 @@
+[project]
+name = "finance-quarterly-billing-agent"
+version = "0.1.0"
+description = "Web-based finance agent for quarterly service fee billing, invoice matching, and finance-system submission."
+requires-python = ">=3.9,<3.13"
+dependencies = [
+  "openpyxl>=3.1.0"
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
