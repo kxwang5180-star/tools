@@ -51,7 +51,28 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
         self.assertIn("xxxxxxxxxxxx...", markdown)
         self.assertIn("仅展示前 2 行", markdown)
 
-    def test_filter_nearest_milestone_keeps_closest_dated_row(self):
+    def test_filter_nearest_milestone_keeps_closest_dated_row_per_project(self):
+        values = sender.filter_nearest_milestone(
+            [
+                ["项目", "里程碑", "计划时间", "状态"],
+                ["A项目", "需求评审", "2026-06-20", "完成"],
+                ["A项目", "开发完成", "2026-07-05", "进行中"],
+                ["B项目", "方案评审", "2026-06-30", "完成"],
+                ["B项目", "上线", "2026-08-01", "未开始"],
+            ],
+            today=date(2026, 7, 2),
+        )
+
+        self.assertEqual(
+            values,
+            [
+                ["项目", "里程碑", "计划时间", "状态"],
+                ["A项目", "开发完成", "2026-07-05", "进行中"],
+                ["B项目", "方案评审", "2026-06-30", "完成"],
+            ],
+        )
+
+    def test_filter_nearest_milestone_without_project_column_keeps_one_closest_row(self):
         values = sender.filter_nearest_milestone(
             [
                 ["里程碑", "计划时间", "状态"],
@@ -73,9 +94,9 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
 
         self.assertEqual(sender.filter_nearest_milestone(values, today=date(2026, 7, 2)), values)
 
-    def test_build_markdown_message_adds_summary_and_table(self):
+    def test_build_markdown_message_returns_only_table(self):
         markdown = sender.build_markdown_message(
-            title="表格消息",
+            title="项目进展",
             values=[["里程碑", "计划时间"], ["开发完成", "2026-07-05"]],
             max_rows=20,
             max_columns=8,
@@ -83,10 +104,11 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
             generated_at="2026-07-02 14:30",
         )
 
-        self.assertIn("**表格消息**", markdown)
-        self.assertIn("更新时间：2026-07-02 14:30", markdown)
-        self.assertIn("数据范围：1 条", markdown)
+        self.assertNotIn("**项目进展**", markdown)
+        self.assertNotIn("更新时间", markdown)
+        self.assertNotIn("数据范围", markdown)
         self.assertIn("| 里程碑 | 计划时间 |", markdown)
+        self.assertTrue(markdown.startswith("| 里程碑 | 计划时间 |"))
 
     def test_build_post_message_payload_uses_post_md_tag(self):
         payload = sender.build_post_message_payload(
@@ -115,6 +137,8 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
         card = json.loads(payload["content"])
         self.assertEqual(card["schema"], "2.0")
         self.assertEqual(card["header"]["template"], "blue")
+        self.assertEqual(card["header"]["title"]["content"], "表格消息")
+        self.assertNotIn("subtitle", card["header"])
         self.assertEqual(card["body"]["elements"][0]["tag"], "markdown")
 
     def test_extract_values_supports_feishu_value_range_shape(self):

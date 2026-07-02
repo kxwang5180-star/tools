@@ -32,12 +32,12 @@ python3 feishu_sheet_post_sender.py \
   --range A1:F20 \
   --receive-id ou_xxxxx \
   --receive-id-type open_id \
-  --title '表格日报'
+  --title '项目进展'
 ```
 
 输出里会包含最终发送 payload，其中 `content` 是飞书接口要求的 JSON 字符串。
 
-消息正文会自动增加标题、更新时间和数据条数。如果识别到表头里包含“里程碑/节点/计划时间/截止时间”等字段，会只展示日期离当前时间最近的一条里程碑；需要展示全部时加 `--show-all-milestones`。
+消息正文只展示表格本身，不额外插入更新时间、数据条数等说明。如果识别到表头里包含“里程碑/节点/计划时间/截止时间”等字段，会按项目分组，每个项目只展示日期离当前时间最近的一条里程碑；需要展示全部时加 `--show-all-milestones`。
 
 也支持知识库中的多维表格链接：
 
@@ -54,7 +54,7 @@ python3 feishu_sheet_post_sender.py \
   --range A1:C16 \
   --receive-id 12139762 \
   --receive-id-type user_id \
-  --title '表格消息' \
+  --title '项目进展' \
   --message-format card
 ```
 
@@ -69,7 +69,7 @@ python3 feishu_sheet_post_sender.py \
   --range A1:F20 \
   --receive-id ou_xxxxx \
   --receive-id-type open_id \
-  --title '表格日报' \
+  --title '项目进展' \
   --send
 ```
 
@@ -84,7 +84,7 @@ python3 feishu_sheet_post_sender.py \
   --range A1:C16 \
   --receive-id 12139762 \
   --receive-id-type user_id \
-  --title '表格消息' \
+  --title '项目进展' \
   --message-format card \
   --send
 ```
@@ -100,7 +100,7 @@ python3 feishu_sheet_post_sender.py \
   --range A1:C16 \
   --lookup-email person@example.com \
   --receive-id-type open_id \
-  --title '表格消息'
+  --title '项目进展'
 ```
 
 或者：
@@ -112,7 +112,7 @@ python3 feishu_sheet_post_sender.py \
   --range A1:C16 \
   --lookup-mobile 13800000000 \
   --receive-id-type open_id \
-  --title '表格消息'
+  --title '项目进展'
 ```
 
 如果直接用工号发送报错，说明该租户里消息接口识别的 `user_id` 不是工号；再改用邮箱或手机号查询 `open_id/user_id`。
@@ -132,7 +132,7 @@ python3 feishu_sheet_post_sender.py \
 - `--max-columns`: Markdown 表格最多展示列数，默认 8
 - `--max-cell-length`: 单元格最大字符数，默认 80
 - `--message-format`: `post` 或 `card`，默认 `post`
-- `--show-all-milestones`: 关闭最近里程碑过滤，展示范围内所有行
+- `--show-all-milestones`: 关闭按项目筛选最近里程碑，展示范围内所有行
 - `--uuid`: 可选的飞书消息去重 id
 - `--send`: 真正发送；不加时只预览
 

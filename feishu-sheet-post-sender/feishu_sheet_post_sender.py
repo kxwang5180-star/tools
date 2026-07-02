@@ -19,6 +19,7 @@ DEFAULT_BASE_URL = "https://open.feishu.cn"
 VALID_RECEIVE_ID_TYPES = {"open_id", "user_id", "union_id", "email", "chat_id"}
 BITABLE_RANGE_DEFAULT = {"max_columns": 8, "max_records": 20}
 MILESTONE_KEYWORDS = ("里程碑", "节点", "计划时间", "预计时间", "截止时间", "完成时间")
+PROJECT_KEYWORDS = ("项目", "项目名称", "项目名", "需求", "需求名称")
 
 
 class FeishuApiError(RuntimeError):
@@ -322,12 +323,27 @@ def is_milestone_table(values: list[list[Any]]) -> bool:
     return any(keyword in header_text for keyword in MILESTONE_KEYWORDS)
 
 
+def find_project_column(header: list[Any]) -> int | None:
+    normalized = [str(cell or "").strip() for cell in header]
+    for keyword in PROJECT_KEYWORDS:
+        for index, name in enumerate(normalized):
+            if name == keyword:
+                return index
+    for index, name in enumerate(normalized):
+        if "项目" in name:
+            return index
+    return None
+
+
 def filter_nearest_milestone(values: list[list[Any]], today: date | None = None) -> list[list[Any]]:
     if len(values) <= 2 or not is_milestone_table(values):
         return values
 
     base = today or date.today()
-    nearest: tuple[int, int, list[Any]] | None = None
+    project_column = find_project_column(values[0])
+    nearest_by_project: dict[str, tuple[int, int, list[Any]]] = {}
+    nearest_without_project: tuple[int, int, list[Any]] | None = None
+
     for index, row in enumerate(values[1:]):
         row_dates: list[date] = []
         for cell in row:
@@ -336,12 +352,28 @@ def filter_nearest_milestone(values: list[list[Any]], today: date | None = None)
             continue
         distance = min(abs((item - base).days) for item in row_dates)
         candidate = (distance, index, row)
-        if nearest is None or candidate < nearest:
-            nearest = candidate
 
-    if nearest is None:
+        if project_column is None:
+            if nearest_without_project is None or candidate < nearest_without_project:
+                nearest_without_project = candidate
+            continue
+
+        project_key = str(row[project_column] if project_column < len(row) else "").strip()
+        if not project_key:
+            project_key = f"__row_{index}"
+        current = nearest_by_project.get(project_key)
+        if current is None or candidate < current:
+            nearest_by_project[project_key] = candidate
+
+    if project_column is None:
+        if nearest_without_project is None:
+            return values
+        return [values[0], nearest_without_project[2]]
+
+    if not nearest_by_project:
         return values
-    return [values[0], nearest[2]]
+    selected = [item[2] for item in sorted(nearest_by_project.values(), key=lambda item: item[1])]
+    return [values[0], *selected]
 
 
 def build_markdown_message(
@@ -353,17 +385,7 @@ def build_markdown_message(
     generated_at: str | None = None,
 ) -> str:
     rows = normalize_rows(values, max_columns=max_columns)
-    data_count = max(0, len(rows) - 1)
-    generated = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M")
-    parts = [
-        f"**{title}**",
-        "",
-        f"更新时间：{generated}",
-        f"数据范围：{data_count} 条",
-        "",
-        values_to_markdown(rows, max_rows=max_rows, max_columns=max_columns, max_cell_length=max_cell_length),
-    ]
-    return "\n".join(parts)
+    return values_to_markdown(rows, max_rows=max_rows, max_columns=max_columns, max_cell_length=max_cell_length)
 
 
 def build_post_message_payload(
@@ -446,7 +468,6 @@ def build_card_message_payload(
         },
         "header": {
             "title": plain_text(title),
-            "subtitle": plain_text("自动读取飞书表格生成"),
             "template": "blue",
         },
     }
@@ -624,12 +645,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--receive-id-type", default="open_id", choices=sorted(VALID_RECEIVE_ID_TYPES))
     parser.add_argument("--lookup-email", default="", help="Look up target user id by email before sending")
     parser.add_argument("--lookup-mobile", default="", help="Look up target user id by mobile before sending")
-    parser.add_argument("--title", default="飞书表格消息")
+    parser.add_argument("--title", default="项目进展")
     parser.add_argument("--max-rows", type=int, default=20)
     parser.add_argument("--max-columns", type=int, default=8)
     parser.add_argument("--max-cell-length", type=int, default=80)
     parser.add_argument("--message-format", default="post", choices=["post", "card"], help="Send as post md message or interactive card")
-    parser.add_argument("--show-all-milestones", action="store_true", help="Do not auto-filter milestone tables to the nearest dated row")
+    parser.add_argument("--show-all-milestones", action="store_true", help="Do not keep only the nearest milestone row per project")
     parser.add_argument("--uuid", default="", help="Optional Feishu message dedupe id, max 50 chars")
     parser.add_argument("--debug", action="store_true", help="Print Feishu API request path and response code for troubleshooting")
     parser.add_argument("--send", action="store_true", help="Actually send. Without this flag, only print a dry-run payload.")
