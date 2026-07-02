@@ -5,17 +5,10 @@ __pycache__/
 
 .env
 .env.*
-!.env.example
-**/.env
-**/.env.*
-!**/.env.example
 
 data/
 uploads/
 outputs/
-**/data/
-**/uploads/
-**/outputs/
 
 .venv/
 venv/
