@@ -1,4 +1,4 @@
-# Procurement Tool Workspace
+Tool Workspace
 
 This repository now contains two related tools in separate folders:
 
