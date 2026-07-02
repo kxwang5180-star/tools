@@ -331,8 +331,15 @@ def split_milestone_segments(text: str) -> List[str]:
     if len(lines) > 1:
         return lines
 
-    marker_pattern = r"(?=(?:项目)?里程碑\s*\d*[:：]|(?:\d+|[一二三四五六七八九十]+)[.、]\s*)"
-    parts = [part.strip() for part in re.split(marker_pattern, value) if part.strip()]
+    marker_pattern = r"(?:项目)?里程碑\s*\d*[:：]|(?:\d+|[一二三四五六七八九十]+)[.、]\s*"
+    marker_matches = list(re.finditer(marker_pattern, value))
+    parts = []
+    for index, match in enumerate(marker_matches):
+        start = match.start()
+        end = marker_matches[index + 1].start() if index + 1 < len(marker_matches) else len(value)
+        part = value[start:end].strip()
+        if part:
+            parts.append(part)
     if len(parts) > 1:
         return parts
 

@@ -108,6 +108,20 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
         self.assertNotIn("8月1日", values[1][2])
         self.assertNotIn("测试：6月2日-6月10日", values[2][2])
 
+    def test_split_milestone_segments_supports_inline_markers(self):
+        segments = sender.split_milestone_segments(
+            "1. 6月10日完成需求评审 2. 6月30日完成开发 项目里程碑3：8月1日上线"
+        )
+
+        self.assertEqual(
+            segments,
+            [
+                "1. 6月10日完成需求评审",
+                "2. 6月30日完成开发",
+                "项目里程碑3：8月1日上线",
+            ],
+        )
+
     def test_filter_nearest_milestone_leaves_non_milestone_tables_unchanged(self):
         values = [
             ["项目", "状态"],
