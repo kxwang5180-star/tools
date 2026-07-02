@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Read one Feishu Sheet range and send it as a post message with an md tag."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -12,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 
 DEFAULT_BASE_URL = "https://open.feishu.cn"
@@ -27,7 +25,7 @@ class FeishuApiError(RuntimeError):
     pass
 
 
-def format_feishu_error(response_data: dict[str, Any], fallback: str) -> str:
+def format_feishu_error(response_data: Dict[str, Any], fallback: str) -> str:
     message = response_data.get("msg") or response_data.get("message") or fallback
     return f"{message}（飞书错误码：{response_data.get('code')}）"
 
@@ -54,7 +52,7 @@ def required_env(name: str) -> str:
     return value
 
 
-def parse_sheet_url(url: str) -> dict[str, str]:
+def parse_sheet_url(url: str) -> Dict[str, str]:
     parsed = urllib.parse.urlparse(url)
     parts = [part for part in parsed.path.split("/") if part]
     try:
@@ -71,7 +69,7 @@ def parse_sheet_url(url: str) -> dict[str, str]:
     }
 
 
-def parse_wiki_url(url: str) -> dict[str, str]:
+def parse_wiki_url(url: str) -> Dict[str, str]:
     parsed = urllib.parse.urlparse(url)
     parts = [part for part in parsed.path.split("/") if part]
     try:
@@ -102,7 +100,7 @@ def column_name_to_number(column_name: str) -> int:
     return total
 
 
-def parse_a1_range_for_bitable(cell_range: str) -> dict[str, int]:
+def parse_a1_range_for_bitable(cell_range: str) -> Dict[str, int]:
     value = str(cell_range or "").strip()
     if "!" in value:
         value = value.split("!", 1)[1]
@@ -137,7 +135,7 @@ def build_range(sheet_id: str, cell_range: str) -> str:
     return f"{sheet}!{value}"
 
 
-def extract_values(response_data: dict[str, Any]) -> list[list[Any]]:
+def extract_values(response_data: Dict[str, Any]) -> List[List[Any]]:
     if response_data.get("code") not in (0, None):
         message = response_data.get("msg") or response_data.get("message") or "Feishu API returned an error"
         raise FeishuApiError(f"{message}（飞书错误码：{response_data.get('code')}）")
@@ -152,7 +150,7 @@ def extract_values(response_data: dict[str, Any]) -> list[list[Any]]:
     return values
 
 
-def extract_user_id(response_data: dict[str, Any], receive_id_type: str) -> str:
+def extract_user_id(response_data: Dict[str, Any], receive_id_type: str) -> str:
     if response_data.get("code") not in (0, None):
         message = response_data.get("msg") or response_data.get("message") or "Feishu API returned an error"
         raise FeishuApiError(f"{message}（飞书错误码：{response_data.get('code')}）")
@@ -169,7 +167,7 @@ def extract_user_id(response_data: dict[str, Any], receive_id_type: str) -> str:
     return str(value)
 
 
-def extract_wiki_node(response_data: dict[str, Any]) -> dict[str, Any]:
+def extract_wiki_node(response_data: Dict[str, Any]) -> Dict[str, Any]:
     if response_data.get("code") not in (0, None):
         message = response_data.get("msg") or response_data.get("message") or "Feishu API returned an error"
         raise FeishuApiError(f"{message}（飞书错误码：{response_data.get('code')}）")
@@ -180,7 +178,7 @@ def extract_wiki_node(response_data: dict[str, Any]) -> dict[str, Any]:
     return node
 
 
-def extract_bitable_tables(response_data: dict[str, Any]) -> list[dict[str, Any]]:
+def extract_bitable_tables(response_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     if response_data.get("code") not in (0, None):
         message = response_data.get("msg") or response_data.get("message") or "Feishu API returned an error"
         raise FeishuApiError(f"{message}（飞书错误码：{response_data.get('code')}）")
@@ -191,7 +189,7 @@ def extract_bitable_tables(response_data: dict[str, Any]) -> list[dict[str, Any]
     return tables
 
 
-def extract_bitable_records(response_data: dict[str, Any]) -> list[dict[str, Any]]:
+def extract_bitable_records(response_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     if response_data.get("code") not in (0, None):
         message = response_data.get("msg") or response_data.get("message") or "Feishu API returned an error"
         raise FeishuApiError(f"{message}（飞书错误码：{response_data.get('code')}）")
@@ -219,11 +217,11 @@ def bitable_cell_to_plain(value: Any) -> str:
 
 
 def bitable_records_to_values(
-    records: list[dict[str, Any]],
+    records: List[Dict[str, Any]],
     max_columns: int,
     max_records: int,
-) -> list[list[Any]]:
-    field_names: list[str] = []
+) -> List[List[Any]]:
+    field_names = []  # type: List[str]
     for record in records:
         fields = record.get("fields") or {}
         for field_name in fields.keys():
@@ -236,7 +234,7 @@ def bitable_records_to_values(
     if not field_names:
         raise FeishuApiError("Bitable records do not contain fields")
 
-    values: list[list[Any]] = [field_names]
+    values = [field_names]  # type: List[List[Any]]
     for record in records[:max_records]:
         fields = record.get("fields") or {}
         values.append([bitable_cell_to_plain(fields.get(field_name)) for field_name in field_names])
@@ -258,7 +256,7 @@ def cell_to_text(value: Any, max_cell_length: int = 80) -> str:
     return text
 
 
-def normalize_rows(values: list[list[Any]], max_columns: int) -> list[list[Any]]:
+def normalize_rows(values: List[List[Any]], max_columns: int) -> List[List[Any]]:
     rows = [list(row) if isinstance(row, list) else [row] for row in values]
     if not rows:
         return []
@@ -271,7 +269,7 @@ def normalize_rows(values: list[list[Any]], max_columns: int) -> list[list[Any]]
 
 
 def values_to_markdown(
-    values: list[list[Any]],
+    values: List[List[Any]],
     max_rows: int = 20,
     max_columns: int = 8,
     max_cell_length: int = 80,
@@ -297,10 +295,10 @@ def values_to_markdown(
     return "\n".join(lines)
 
 
-def parse_date_candidates(text: str, today: date | None = None) -> list[date]:
+def parse_date_candidates(text: str, today: Optional[date] = None) -> List[date]:
     base = today or date.today()
     value = str(text or "")
-    results: list[date] = []
+    results = []  # type: List[date]
     patterns = [
         r"(?P<year>\d{4})[-/.年](?P<month>\d{1,2})[-/.月](?P<day>\d{1,2})",
         r"(?P<month>\d{1,2})月(?P<day>\d{1,2})日?",
@@ -317,7 +315,7 @@ def parse_date_candidates(text: str, today: date | None = None) -> list[date]:
     return results
 
 
-def find_milestone_column(header: list[Any]) -> int | None:
+def find_milestone_column(header: List[Any]) -> Optional[int]:
     normalized = [str(cell or "").strip() for cell in header]
     for index, name in enumerate(normalized):
         if "里程碑" in name or "节点" in name:
@@ -325,7 +323,7 @@ def find_milestone_column(header: list[Any]) -> int | None:
     return None
 
 
-def split_milestone_segments(text: str) -> list[str]:
+def split_milestone_segments(text: str) -> List[str]:
     value = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not value:
         return []
@@ -342,7 +340,7 @@ def split_milestone_segments(text: str) -> list[str]:
     if len(date_matches) <= 1:
         return [value]
 
-    segments: list[str] = []
+    segments = []  # type: List[str]
     for index, match in enumerate(date_matches):
         start = 0 if index == 0 else match.start()
         end = date_matches[index + 1].start() if index + 1 < len(date_matches) else len(value)
@@ -352,9 +350,9 @@ def split_milestone_segments(text: str) -> list[str]:
     return segments or [value]
 
 
-def nearest_milestone_segment(text: str, today: date | None = None) -> str:
+def nearest_milestone_segment(text: str, today: Optional[date] = None) -> str:
     base = today or date.today()
-    nearest: tuple[int, int, str] | None = None
+    nearest = None  # type: Optional[Tuple[int, int, str]]
     for index, segment in enumerate(split_milestone_segments(text)):
         dates = parse_date_candidates(segment, today=base)
         if not dates:
@@ -366,14 +364,14 @@ def nearest_milestone_segment(text: str, today: date | None = None) -> str:
     return nearest[2] if nearest else str(text or "")
 
 
-def is_milestone_table(values: list[list[Any]]) -> bool:
+def is_milestone_table(values: List[List[Any]]) -> bool:
     if not values:
         return False
     header_text = " ".join(str(cell or "") for cell in values[0])
     return any(keyword in header_text for keyword in MILESTONE_KEYWORDS)
 
 
-def find_project_column(header: list[Any]) -> int | None:
+def find_project_column(header: List[Any]) -> Optional[int]:
     normalized = [str(cell or "").strip() for cell in header]
     for keyword in PROJECT_KEYWORDS:
         for index, name in enumerate(normalized):
@@ -385,21 +383,21 @@ def find_project_column(header: list[Any]) -> int | None:
     return None
 
 
-def filter_nearest_milestone(values: list[list[Any]], today: date | None = None) -> list[list[Any]]:
+def filter_nearest_milestone(values: List[List[Any]], today: Optional[date] = None) -> List[List[Any]]:
     if len(values) <= 2 or not is_milestone_table(values):
         return values
 
     base = today or date.today()
     project_column = find_project_column(values[0])
     milestone_column = find_milestone_column(values[0])
-    nearest_by_project: dict[str, tuple[int, int, list[Any]]] = {}
-    nearest_without_project: tuple[int, int, list[Any]] | None = None
+    nearest_by_project = {}  # type: Dict[str, Tuple[int, int, List[Any]]]
+    nearest_without_project = None  # type: Optional[Tuple[int, int, List[Any]]]
 
     for index, row in enumerate(values[1:]):
         row = list(row)
         if milestone_column is not None and milestone_column < len(row):
             row[milestone_column] = nearest_milestone_segment(str(row[milestone_column] or ""), today=base)
-        row_dates: list[date] = []
+        row_dates = []  # type: List[date]
         for cell in row:
             row_dates.extend(parse_date_candidates(str(cell or ""), today=base))
         if not row_dates:
@@ -432,11 +430,11 @@ def filter_nearest_milestone(values: list[list[Any]], today: date | None = None)
 
 def build_markdown_message(
     title: str,
-    values: list[list[Any]],
+    values: List[List[Any]],
     max_rows: int,
     max_columns: int,
     max_cell_length: int,
-    generated_at: str | None = None,
+    generated_at: Optional[str] = None,
 ) -> str:
     rows = normalize_rows(values, max_columns=max_columns)
     return values_to_markdown(rows, max_rows=max_rows, max_columns=max_columns, max_cell_length=max_cell_length)
@@ -448,7 +446,7 @@ def build_post_message_payload(
     title: str,
     markdown: str,
     uuid: str = "",
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     if receive_id_type not in VALID_RECEIVE_ID_TYPES:
         allowed = ", ".join(sorted(VALID_RECEIVE_ID_TYPES))
         raise ValueError(f"Unsupported receive_id_type: {receive_id_type}. Allowed: {allowed}")
@@ -466,7 +464,7 @@ def build_post_message_payload(
             ],
         }
     }
-    payload: dict[str, Any] = {
+    payload = {  # type: Dict[str, Any]
         "receive_id": receive_id,
         "msg_type": "post",
         "content": json.dumps(content, ensure_ascii=False),
@@ -476,14 +474,14 @@ def build_post_message_payload(
     return payload
 
 
-def plain_text(content: str) -> dict[str, str]:
+def plain_text(content: str) -> Dict[str, str]:
     return {
         "tag": "plain_text",
         "content": str(content or ""),
     }
 
 
-def card_markdown(content: str, element_id: str, text_size: str = "normal_v2") -> dict[str, str]:
+def card_markdown(content: str, element_id: str, text_size: str = "normal_v2") -> Dict[str, str]:
     return {
         "tag": "markdown",
         "element_id": element_id,
@@ -494,12 +492,12 @@ def card_markdown(content: str, element_id: str, text_size: str = "normal_v2") -
     }
 
 
-def build_card_table_row(row: list[Any], row_index: int, is_header: bool = False) -> dict[str, Any]:
+def build_card_table_row(row: List[Any], row_index: int, is_header: bool = False) -> Dict[str, Any]:
     column_weights = [3, 3, 5]
     columns = []
     for column_index, value in enumerate(row):
         weight = column_weights[column_index] if column_index < len(column_weights) else 3
-        column: dict[str, Any] = {
+        column = {  # type: Dict[str, Any]
             "tag": "column",
             "element_id": f"col_{row_index}_{column_index}",
             "width": "weighted",
@@ -525,7 +523,7 @@ def build_card_table_row(row: list[Any], row_index: int, is_header: bool = False
     }
 
 
-def build_card_table_elements(values: list[list[Any]]) -> list[dict[str, Any]]:
+def build_card_table_elements(values: List[List[Any]]) -> List[Dict[str, Any]]:
     rows = normalize_rows(values, max_columns=3)
     if not rows:
         return []
@@ -541,13 +539,13 @@ def build_card_message_payload(
     title: str,
     markdown: str,
     uuid: str = "",
-    values: list[list[Any]] | None = None,
-) -> dict[str, Any]:
+    values: Optional[List[List[Any]]] = None,
+) -> Dict[str, Any]:
     if receive_id_type not in VALID_RECEIVE_ID_TYPES:
         allowed = ", ".join(sorted(VALID_RECEIVE_ID_TYPES))
         raise ValueError(f"Unsupported receive_id_type: {receive_id_type}. Allowed: {allowed}")
 
-    elements: list[dict[str, Any]]
+    elements = []  # type: List[Dict[str, Any]]
     if values:
         elements = build_card_table_elements(values)
     else:
@@ -584,7 +582,7 @@ def build_card_message_payload(
             "template": "blue",
         },
     }
-    payload: dict[str, Any] = {
+    payload = {  # type: Dict[str, Any]
         "receive_id": receive_id,
         "msg_type": "interactive",
         "content": json.dumps(card, ensure_ascii=False),
@@ -606,9 +604,9 @@ class FeishuClient:
         method: str,
         path: str,
         token: str = "",
-        body: dict[str, Any] | None = None,
-        query: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
+        body: Optional[Dict[str, Any]] = None,
+        query: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         url = f"{self.base_url}{path}"
         if query:
             url = f"{url}?{urllib.parse.urlencode(query)}"
@@ -657,7 +655,7 @@ class FeishuClient:
             raise FeishuApiError("Feishu tenant access token is empty")
         return token
 
-    def read_sheet_range(self, tenant_token: str, spreadsheet_token: str, range_ref: str) -> list[list[Any]]:
+    def read_sheet_range(self, tenant_token: str, spreadsheet_token: str, range_ref: str) -> List[List[Any]]:
         encoded_token = urllib.parse.quote(spreadsheet_token, safe="")
         encoded_range = urllib.parse.quote(range_ref, safe="")
         data = self.request(
@@ -667,7 +665,7 @@ class FeishuClient:
         )
         return extract_values(data)
 
-    def get_wiki_node(self, tenant_token: str, node_token: str) -> dict[str, Any]:
+    def get_wiki_node(self, tenant_token: str, node_token: str) -> Dict[str, Any]:
         data = self.request(
             "GET",
             "/open-apis/wiki/v2/spaces/get_node",
@@ -676,7 +674,7 @@ class FeishuClient:
         )
         return extract_wiki_node(data)
 
-    def list_bitable_tables(self, tenant_token: str, app_token: str) -> list[dict[str, Any]]:
+    def list_bitable_tables(self, tenant_token: str, app_token: str) -> List[Dict[str, Any]]:
         encoded_app_token = urllib.parse.quote(app_token, safe="")
         data = self.request(
             "GET",
@@ -692,7 +690,7 @@ class FeishuClient:
         app_token: str,
         table_id: str,
         page_size: int,
-    ) -> list[dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         encoded_app_token = urllib.parse.quote(app_token, safe="")
         encoded_table_id = urllib.parse.quote(table_id, safe="")
         data = self.request(
@@ -707,8 +705,8 @@ class FeishuClient:
         self,
         tenant_token: str,
         receive_id_type: str,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
         data = self.request(
             "POST",
             "/open-apis/im/v1/messages",
@@ -727,7 +725,7 @@ class FeishuClient:
         email: str = "",
         mobile: str = "",
     ) -> str:
-        body: dict[str, list[str]] = {}
+        body = {}  # type: Dict[str, List[str]]
         if email:
             body["emails"] = [email]
         if mobile:
@@ -770,7 +768,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def resolve_sheet_args(args: argparse.Namespace) -> tuple[str, str, str]:
+def resolve_sheet_args(args: argparse.Namespace) -> Tuple[str, str, str]:
     parsed = {"spreadsheet_token": "", "sheet_id": ""}
     if args.sheet_url:
         parsed = parse_sheet_url(args.sheet_url)
@@ -786,7 +784,7 @@ def read_values_from_source(
     client: FeishuClient,
     tenant_token: str,
     args: argparse.Namespace,
-) -> list[list[Any]]:
+) -> List[List[Any]]:
     if args.sheet_url and is_wiki_url(args.sheet_url):
         parsed = parse_wiki_url(args.sheet_url)
         node = client.get_wiki_node(tenant_token, parsed["node_token"])
@@ -891,7 +889,7 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

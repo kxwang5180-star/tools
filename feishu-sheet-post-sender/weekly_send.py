@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Run the project progress sender from environment settings for schedulers."""
 
-from __future__ import annotations
-
 import os
 import sys
 from pathlib import Path
+from typing import List
 
 import feishu_sheet_post_sender as sender
 
@@ -31,7 +30,7 @@ def require_env(name: str) -> str:
     return value
 
 
-def build_sender_args() -> list[str]:
+def build_sender_args() -> List[str]:
     env_file = env_value("FEISHU_WEEKLY_ENV_FILE", ".env.local")
     args = [
         "--env-file",
