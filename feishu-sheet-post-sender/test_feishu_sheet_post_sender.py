@@ -182,10 +182,24 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
         self.assertEqual(elements[0]["tag"], "column_set")
         self.assertEqual(elements[0]["element_id"], "row_header")
         self.assertEqual(elements[1]["tag"], "column_set")
-        self.assertEqual(elements[1]["columns"][0]["width"], "auto")
-        self.assertEqual(elements[1]["columns"][1]["width"], "auto")
+        self.assertEqual(elements[1]["columns"][0]["width"], "weighted")
+        self.assertEqual(elements[1]["columns"][0]["weight"], 3)
+        self.assertEqual(elements[1]["columns"][1]["width"], "weighted")
+        self.assertEqual(elements[1]["columns"][1]["weight"], 3)
         self.assertEqual(elements[1]["columns"][2]["width"], "weighted")
-        self.assertEqual(elements[1]["columns"][2]["weight"], 2)
+        self.assertEqual(elements[1]["columns"][2]["weight"], 5)
+        column_profile = [
+            (column["width"], column.get("weight"))
+            for column in elements[0]["columns"]
+        ]
+        self.assertEqual(
+            column_profile,
+            [(column["width"], column.get("weight")) for column in elements[1]["columns"]],
+        )
+        self.assertEqual(
+            column_profile,
+            [(column["width"], column.get("weight")) for column in elements[2]["columns"]],
+        )
         self.assertIn("【合同系统】项目", elements[1]["columns"][0]["elements"][0]["content"])
         self.assertIn("6月30日完成开发", elements[1]["columns"][2]["elements"][0]["content"])
 

@@ -495,14 +495,15 @@ def card_markdown(content: str, element_id: str, text_size: str = "normal_v2") -
 
 
 def build_card_table_row(row: list[Any], row_index: int, is_header: bool = False) -> dict[str, Any]:
-    widths = ["auto", "auto", "weighted"]
+    column_weights = [3, 3, 5]
     columns = []
     for column_index, value in enumerate(row):
-        width = widths[column_index] if column_index < len(widths) else "weighted"
+        weight = column_weights[column_index] if column_index < len(column_weights) else 3
         column: dict[str, Any] = {
             "tag": "column",
             "element_id": f"col_{row_index}_{column_index}",
-            "width": width,
+            "width": "weighted",
+            "weight": weight,
             "elements": [
                 card_markdown(
                     f"**{value}**" if is_header else cell_to_text(value, max_cell_length=1000),
@@ -513,8 +514,6 @@ def build_card_table_row(row: list[Any], row_index: int, is_header: bool = False
             "padding": "6px 8px 6px 8px",
             "vertical_align": "top",
         }
-        if width == "weighted":
-            column["weight"] = 2 if column_index == 2 else 1
         columns.append(column)
     return {
         "tag": "column_set",
