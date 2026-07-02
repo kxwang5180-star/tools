@@ -2,7 +2,7 @@ Tool Workspace
 
 This repository now contains two related tools in separate folders:
 
-- `procurement-tool/`: the original procurement settlement web tool.
+- `procurement-tool/`: procurement settlement web tool.
 - `feishu-sheet-post-sender/`: a Feishu app robot utility that reads a Feishu Wiki/Sheet range, formats the nearest milestone row, and sends it as a Feishu message or card.
 
 ## Procurement Tool
