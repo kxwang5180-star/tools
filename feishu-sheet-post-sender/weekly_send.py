@@ -30,7 +30,17 @@ def require_env(name: str) -> str:
     return value
 
 
-def build_sender_args() -> List[str]:
+def receive_ids_from_env() -> List[str]:
+    raw_ids = env_value("FEISHU_WEEKLY_RECEIVE_IDS")
+    if not raw_ids:
+        raw_ids = require_env("FEISHU_WEEKLY_RECEIVE_ID")
+    receive_ids = [item.strip() for item in raw_ids.split(",") if item.strip()]
+    if not receive_ids:
+        raise ValueError("Missing required environment variable: FEISHU_WEEKLY_RECEIVE_ID or FEISHU_WEEKLY_RECEIVE_IDS")
+    return receive_ids
+
+
+def build_sender_args(receive_id: str) -> List[str]:
     env_file = env_value("FEISHU_WEEKLY_ENV_FILE", ".env.local")
     args = [
         "--env-file",
@@ -40,7 +50,7 @@ def build_sender_args() -> List[str]:
         "--range",
         env_value("FEISHU_WEEKLY_RANGE", "A1:C16"),
         "--receive-id",
-        require_env("FEISHU_WEEKLY_RECEIVE_ID"),
+        receive_id,
         "--receive-id-type",
         env_value("FEISHU_WEEKLY_RECEIVE_ID_TYPE", "user_id"),
         "--title",
@@ -64,7 +74,11 @@ def run_from_env() -> int:
         print("weekly send skipped: FEISHU_WEEKLY_SEND_ENABLED is not true")
         return 0
     try:
-        return sender.main(build_sender_args())
+        for receive_id in receive_ids_from_env():
+            result = sender.main(build_sender_args(receive_id))
+            if result != 0:
+                return result
+        return 0
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

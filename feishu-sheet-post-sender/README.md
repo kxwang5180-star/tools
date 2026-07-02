@@ -129,6 +129,7 @@ FEISHU_WEEKLY_ENV_FILE=.env.local
 FEISHU_WEEKLY_SHEET_URL=https://haidilao.feishu.cn/wiki/XY6Uwdj8XiLGttkRkEmcCXUon9e?sheet=ec004f
 FEISHU_WEEKLY_RANGE=A1:C16
 FEISHU_WEEKLY_RECEIVE_ID=12139762
+FEISHU_WEEKLY_RECEIVE_IDS=
 FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
 FEISHU_WEEKLY_TITLE=项目进展
 FEISHU_WEEKLY_MESSAGE_FORMAT=card
@@ -148,7 +149,9 @@ FEISHU_WEEKLY_SEND_ENABLED=true
 python3 weekly_send.py
 ```
 
-如果 `FEISHU_WEEKLY_SEND_ENABLED=false`，脚本会输出跳过发送；如果为 `true`，脚本会按 `.env.local` 中的配置真正发送。收件人仍由 `FEISHU_WEEKLY_RECEIVE_ID` 和 `FEISHU_WEEKLY_RECEIVE_ID_TYPE` 决定。当前配置是按工号发送：
+如果 `FEISHU_WEEKLY_SEND_ENABLED=false`，脚本会输出跳过发送；如果为 `true`，脚本会按 `.env.local` 中的配置真正发送。
+
+单人发送时，收件人由 `FEISHU_WEEKLY_RECEIVE_ID` 和 `FEISHU_WEEKLY_RECEIVE_ID_TYPE` 决定。当前配置是按工号发送：
 
 ```env
 FEISHU_WEEKLY_RECEIVE_ID=12139762
@@ -160,6 +163,15 @@ FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
 ```sh
 --receive-id 12139762 --receive-id-type user_id
 ```
+
+多人发送时，使用逗号分隔的 `FEISHU_WEEKLY_RECEIVE_IDS`。它会优先于单人的 `FEISHU_WEEKLY_RECEIVE_ID`：
+
+```env
+FEISHU_WEEKLY_RECEIVE_IDS=12139762,12345678,87654321
+FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
+```
+
+脚本会逐个工号发送私聊消息；其中任意一次发送失败，脚本会返回失败，方便从日志里排查。
 
 ## 部署到服务器
 
@@ -228,7 +240,8 @@ crontab -e
 - `FEISHU_WEEKLY_ENV_FILE`: 环境变量文件路径，默认 `.env.local`
 - `FEISHU_WEEKLY_SHEET_URL`: 要读取的飞书表格或知识库链接
 - `FEISHU_WEEKLY_RANGE`: 读取范围，默认 `A1:C16`
-- `FEISHU_WEEKLY_RECEIVE_ID`: 接收人或群聊 id
+- `FEISHU_WEEKLY_RECEIVE_ID`: 单个接收人或群聊 id
+- `FEISHU_WEEKLY_RECEIVE_IDS`: 多个接收人 id，逗号分隔；设置后优先于 `FEISHU_WEEKLY_RECEIVE_ID`
 - `FEISHU_WEEKLY_RECEIVE_ID_TYPE`: `open_id`、`user_id`、`union_id`、`email`、`chat_id`，默认 `user_id`
 - `FEISHU_WEEKLY_TITLE`: 消息标题，默认 `项目进展`
 - `FEISHU_WEEKLY_MESSAGE_FORMAT`: `post` 或 `card`，默认 `card`
