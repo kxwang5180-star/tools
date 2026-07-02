@@ -85,6 +85,29 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
 
         self.assertEqual(values, [["里程碑", "计划时间", "状态"], ["开发完成", "2026-07-05", "进行中"]])
 
+    def test_filter_nearest_milestone_keeps_closest_segment_inside_milestone_cell(self):
+        values = sender.filter_nearest_milestone(
+            [
+                ["项目名称", "当前在做", "里程碑"],
+                [
+                    "A项目",
+                    "接口开发",
+                    "项目里程碑1：6月10日完成需求评审\n项目里程碑2：6月30日完成开发\n项目里程碑3：8月1日上线",
+                ],
+                [
+                    "B项目",
+                    "体验优化",
+                    "测试：6月2日-6月10日\n项目里程碑3：优惠券管理优化，6月30日完成",
+                ],
+            ],
+            today=date(2026, 7, 2),
+        )
+
+        self.assertEqual(values[1][2], "项目里程碑2：6月30日完成开发")
+        self.assertEqual(values[2][2], "项目里程碑3：优惠券管理优化，6月30日完成")
+        self.assertNotIn("8月1日", values[1][2])
+        self.assertNotIn("测试：6月2日-6月10日", values[2][2])
+
     def test_filter_nearest_milestone_leaves_non_milestone_tables_unchanged(self):
         values = [
             ["项目", "状态"],
@@ -140,6 +163,31 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
         self.assertEqual(card["header"]["title"]["content"], "表格消息")
         self.assertNotIn("subtitle", card["header"])
         self.assertEqual(card["body"]["elements"][0]["tag"], "markdown")
+
+    def test_build_card_message_payload_uses_column_sets_for_table_rows(self):
+        payload = sender.build_card_message_payload(
+            receive_id="12139762",
+            receive_id_type="user_id",
+            title="项目进展",
+            markdown="",
+            values=[
+                ["项目名称", "当前在做", "里程碑"],
+                ["【合同系统】项目", "损耗率闭环配置开发", "6月30日完成开发"],
+                ["【大会员体系】项目", "多轮对话优化", "6月30日完成优惠券管理优化"],
+            ],
+        )
+
+        card = json.loads(payload["content"])
+        elements = card["body"]["elements"]
+        self.assertEqual(elements[0]["tag"], "column_set")
+        self.assertEqual(elements[0]["element_id"], "row_header")
+        self.assertEqual(elements[1]["tag"], "column_set")
+        self.assertEqual(elements[1]["columns"][0]["width"], "auto")
+        self.assertEqual(elements[1]["columns"][1]["width"], "auto")
+        self.assertEqual(elements[1]["columns"][2]["width"], "weighted")
+        self.assertEqual(elements[1]["columns"][2]["weight"], 2)
+        self.assertIn("【合同系统】项目", elements[1]["columns"][0]["elements"][0]["content"])
+        self.assertIn("6月30日完成开发", elements[1]["columns"][2]["elements"][0]["content"])
 
     def test_extract_values_supports_feishu_value_range_shape(self):
         values = sender.extract_values(

@@ -20,6 +20,7 @@ VALID_RECEIVE_ID_TYPES = {"open_id", "user_id", "union_id", "email", "chat_id"}
 BITABLE_RANGE_DEFAULT = {"max_columns": 8, "max_records": 20}
 MILESTONE_KEYWORDS = ("里程碑", "节点", "计划时间", "预计时间", "截止时间", "完成时间")
 PROJECT_KEYWORDS = ("项目", "项目名称", "项目名", "需求", "需求名称")
+DATE_PATTERN = r"(?:\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}日?|\d{1,2}月\d{1,2}日?)"
 
 
 class FeishuApiError(RuntimeError):
@@ -316,6 +317,55 @@ def parse_date_candidates(text: str, today: date | None = None) -> list[date]:
     return results
 
 
+def find_milestone_column(header: list[Any]) -> int | None:
+    normalized = [str(cell or "").strip() for cell in header]
+    for index, name in enumerate(normalized):
+        if "里程碑" in name or "节点" in name:
+            return index
+    return None
+
+
+def split_milestone_segments(text: str) -> list[str]:
+    value = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not value:
+        return []
+    lines = [line.strip() for line in value.split("\n") if line.strip()]
+    if len(lines) > 1:
+        return lines
+
+    marker_pattern = r"(?=(?:项目)?里程碑\s*\d*[:：]|(?:\d+|[一二三四五六七八九十]+)[.、]\s*)"
+    parts = [part.strip() for part in re.split(marker_pattern, value) if part.strip()]
+    if len(parts) > 1:
+        return parts
+
+    date_matches = list(re.finditer(DATE_PATTERN, value))
+    if len(date_matches) <= 1:
+        return [value]
+
+    segments: list[str] = []
+    for index, match in enumerate(date_matches):
+        start = 0 if index == 0 else match.start()
+        end = date_matches[index + 1].start() if index + 1 < len(date_matches) else len(value)
+        segment = value[start:end].strip("；;，, \n")
+        if segment:
+            segments.append(segment)
+    return segments or [value]
+
+
+def nearest_milestone_segment(text: str, today: date | None = None) -> str:
+    base = today or date.today()
+    nearest: tuple[int, int, str] | None = None
+    for index, segment in enumerate(split_milestone_segments(text)):
+        dates = parse_date_candidates(segment, today=base)
+        if not dates:
+            continue
+        distance = min(abs((item - base).days) for item in dates)
+        candidate = (distance, index, segment)
+        if nearest is None or candidate < nearest:
+            nearest = candidate
+    return nearest[2] if nearest else str(text or "")
+
+
 def is_milestone_table(values: list[list[Any]]) -> bool:
     if not values:
         return False
@@ -341,10 +391,14 @@ def filter_nearest_milestone(values: list[list[Any]], today: date | None = None)
 
     base = today or date.today()
     project_column = find_project_column(values[0])
+    milestone_column = find_milestone_column(values[0])
     nearest_by_project: dict[str, tuple[int, int, list[Any]]] = {}
     nearest_without_project: tuple[int, int, list[Any]] | None = None
 
     for index, row in enumerate(values[1:]):
+        row = list(row)
+        if milestone_column is not None and milestone_column < len(row):
+            row[milestone_column] = nearest_milestone_segment(str(row[milestone_column] or ""), today=base)
         row_dates: list[date] = []
         for cell in row:
             row_dates.extend(parse_date_candidates(str(cell or ""), today=base))
@@ -429,16 +483,85 @@ def plain_text(content: str) -> dict[str, str]:
     }
 
 
+def card_markdown(content: str, element_id: str, text_size: str = "normal_v2") -> dict[str, str]:
+    return {
+        "tag": "markdown",
+        "element_id": element_id,
+        "content": str(content or "-"),
+        "text_align": "left",
+        "text_size": text_size,
+        "margin": "0px 0px 0px 0px",
+    }
+
+
+def build_card_table_row(row: list[Any], row_index: int, is_header: bool = False) -> dict[str, Any]:
+    widths = ["auto", "auto", "weighted"]
+    columns = []
+    for column_index, value in enumerate(row):
+        width = widths[column_index] if column_index < len(widths) else "weighted"
+        column: dict[str, Any] = {
+            "tag": "column",
+            "element_id": f"col_{row_index}_{column_index}",
+            "width": width,
+            "elements": [
+                card_markdown(
+                    f"**{value}**" if is_header else cell_to_text(value, max_cell_length=1000),
+                    element_id=f"md_{row_index}_{column_index}",
+                    text_size="normal_v2" if is_header else "normal_v2",
+                )
+            ],
+            "padding": "6px 8px 6px 8px",
+            "vertical_align": "top",
+        }
+        if width == "weighted":
+            column["weight"] = 2 if column_index == 2 else 1
+        columns.append(column)
+    return {
+        "tag": "column_set",
+        "element_id": "row_header" if is_header else f"row_{row_index}",
+        "background_style": "grey" if is_header else "default",
+        "horizontal_spacing": "8px",
+        "columns": columns,
+        "margin": "0px 0px 0px 0px" if is_header else "4px 0px 0px 0px",
+    }
+
+
+def build_card_table_elements(values: list[list[Any]]) -> list[dict[str, Any]]:
+    rows = normalize_rows(values, max_columns=3)
+    if not rows:
+        return []
+    elements = [build_card_table_row(rows[0], row_index=0, is_header=True)]
+    for index, row in enumerate(rows[1:], start=1):
+        elements.append(build_card_table_row(row, row_index=index))
+    return elements
+
+
 def build_card_message_payload(
     receive_id: str,
     receive_id_type: str,
     title: str,
     markdown: str,
     uuid: str = "",
+    values: list[list[Any]] | None = None,
 ) -> dict[str, Any]:
     if receive_id_type not in VALID_RECEIVE_ID_TYPES:
         allowed = ", ".join(sorted(VALID_RECEIVE_ID_TYPES))
         raise ValueError(f"Unsupported receive_id_type: {receive_id_type}. Allowed: {allowed}")
+
+    elements: list[dict[str, Any]]
+    if values:
+        elements = build_card_table_elements(values)
+    else:
+        elements = [
+            {
+                "tag": "markdown",
+                "element_id": "md_table",
+                "content": markdown,
+                "text_align": "left",
+                "text_size": "normal_v2",
+                "margin": "0px 0px 0px 0px",
+            },
+        ]
 
     card = {
         "schema": "2.0",
@@ -455,16 +578,7 @@ def build_card_message_payload(
             },
         },
         "body": {
-            "elements": [
-                {
-                    "tag": "markdown",
-                    "element_id": "md_table",
-                    "content": markdown,
-                    "text_align": "left",
-                    "text_size": "normal_v2",
-                    "margin": "0px 0px 0px 0px",
-                },
-            ],
+            "elements": elements,
         },
         "header": {
             "title": plain_text(title),
@@ -758,6 +872,7 @@ def run(args: argparse.Namespace) -> int:
             title=args.title,
             markdown=markdown,
             uuid=args.uuid,
+            values=values,
         )
     else:
         payload = build_post_message_payload(
