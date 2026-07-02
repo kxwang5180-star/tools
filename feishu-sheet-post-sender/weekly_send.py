@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Run the project progress sender from environment settings for schedulers."""
+
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+import feishu_sheet_post_sender as sender
+
+
+TRUE_VALUES = {"1", "true", "yes", "y", "on"}
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in TRUE_VALUES
+
+
+def env_value(name: str, default: str = "") -> str:
+    return os.environ.get(name, default).strip()
+
+
+def require_env(name: str) -> str:
+    value = env_value(name)
+    if not value:
+        raise ValueError(f"Missing required environment variable: {name}")
+    return value
+
+
+def build_sender_args() -> list[str]:
+    env_file = env_value("FEISHU_WEEKLY_ENV_FILE", ".env.local")
+    args = [
+        "--env-file",
+        env_file,
+        "--sheet-url",
+        require_env("FEISHU_WEEKLY_SHEET_URL"),
+        "--range",
+        env_value("FEISHU_WEEKLY_RANGE", "A1:C16"),
+        "--receive-id",
+        require_env("FEISHU_WEEKLY_RECEIVE_ID"),
+        "--receive-id-type",
+        env_value("FEISHU_WEEKLY_RECEIVE_ID_TYPE", "user_id"),
+        "--title",
+        env_value("FEISHU_WEEKLY_TITLE", "项目进展"),
+        "--message-format",
+        env_value("FEISHU_WEEKLY_MESSAGE_FORMAT", "card"),
+        "--send",
+    ]
+    if env_bool("FEISHU_WEEKLY_SHOW_ALL_MILESTONES"):
+        args.append("--show-all-milestones")
+    if env_bool("FEISHU_WEEKLY_DEBUG"):
+        args.append("--debug")
+    return args
+
+
+def run_from_env() -> int:
+    env_file = env_value("FEISHU_WEEKLY_ENV_FILE", ".env.local")
+    if Path(env_file).exists():
+        sender.load_env_file(env_file)
+    if not env_bool("FEISHU_WEEKLY_SEND_ENABLED"):
+        print("weekly send skipped: FEISHU_WEEKLY_SEND_ENABLED is not true")
+        return 0
+    try:
+        return sender.main(build_sender_args())
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+
+def main() -> int:
+    return run_from_env()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

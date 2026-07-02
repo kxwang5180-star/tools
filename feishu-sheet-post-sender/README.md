@@ -117,6 +117,92 @@ python3 feishu_sheet_post_sender.py \
 
 如果直接用工号发送报错，说明该租户里消息接口识别的 `user_id` 不是工号；再改用邮箱或手机号查询 `open_id/user_id`。
 
+## 每周一 14:00 自动发送
+
+项目内提供了 `weekly_send.py`，用于给服务器、cron、launchd 这类定时器调用。它默认关闭，不会自动发消息。
+
+先在 `.env.local` 里配置定时发送参数：
+
+```env
+FEISHU_WEEKLY_SEND_ENABLED=false
+FEISHU_WEEKLY_ENV_FILE=.env.local
+FEISHU_WEEKLY_SHEET_URL=https://haidilao.feishu.cn/wiki/XY6Uwdj8XiLGttkRkEmcCXUon9e?sheet=ec004f
+FEISHU_WEEKLY_RANGE=A1:C16
+FEISHU_WEEKLY_RECEIVE_ID=12139762
+FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
+FEISHU_WEEKLY_TITLE=项目进展
+FEISHU_WEEKLY_MESSAGE_FORMAT=card
+FEISHU_WEEKLY_SHOW_ALL_MILESTONES=false
+FEISHU_WEEKLY_DEBUG=false
+```
+
+确认要启用自动发送时，把：
+
+```env
+FEISHU_WEEKLY_SEND_ENABLED=true
+```
+
+手动试运行一次：
+
+```sh
+python3 weekly_send.py
+```
+
+如果 `FEISHU_WEEKLY_SEND_ENABLED=false`，脚本会输出跳过发送；如果为 `true`，脚本会按 `.env.local` 中的配置真正发送。收件人仍由 `FEISHU_WEEKLY_RECEIVE_ID` 和 `FEISHU_WEEKLY_RECEIVE_ID_TYPE` 决定。当前配置是按工号发送：
+
+```env
+FEISHU_WEEKLY_RECEIVE_ID=12139762
+FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
+```
+
+这等价于手动命令里的：
+
+```sh
+--receive-id 12139762 --receive-id-type user_id
+```
+
+## 部署到服务器
+
+服务器上建议直接用 GitHub 拉代码，然后用 cron 每周一下午 2 点调用 `weekly_send.py`。
+
+首次部署：
+
+```sh
+git clone git@github.com:kxwang5180-star/procurement-tool.git
+cd procurement-tool/feishu-sheet-post-sender
+cp .env.example .env.local
+```
+
+编辑 `.env.local`，填入飞书应用配置和定时发送配置。真实的 `FEISHU_APP_SECRET` 只放服务器本地，不提交到 GitHub。
+
+以后更新代码：
+
+```sh
+cd /path/to/procurement-tool
+git pull
+```
+
+在服务器上先确认 Python 和手动发送可用：
+
+```sh
+cd /path/to/procurement-tool/feishu-sheet-post-sender
+python3 weekly_send.py
+```
+
+配置每周一 14:00 自动运行：
+
+```sh
+crontab -e
+```
+
+加入一行：
+
+```cron
+0 14 * * 1 cd /path/to/procurement-tool/feishu-sheet-post-sender && /usr/bin/python3 weekly_send.py >> weekly_send.log 2>&1
+```
+
+注意服务器 cron 使用服务器本地时区。先在服务器执行 `date` 确认时区；如果不是中国时间，需要调整 cron 时间或设置服务器时区。
+
 ## 参数说明
 
 - `--sheet-url`: 飞书在线表格 `/sheets/` URL，或知识库多维表格 `/wiki/` URL
@@ -136,8 +222,19 @@ python3 feishu_sheet_post_sender.py \
 - `--uuid`: 可选的飞书消息去重 id
 - `--send`: 真正发送；不加时只预览
 
+## 定时发送环境变量
+
+- `FEISHU_WEEKLY_SEND_ENABLED`: 是否启用定时发送，默认 `false`
+- `FEISHU_WEEKLY_ENV_FILE`: 环境变量文件路径，默认 `.env.local`
+- `FEISHU_WEEKLY_SHEET_URL`: 要读取的飞书表格或知识库链接
+- `FEISHU_WEEKLY_RANGE`: 读取范围，默认 `A1:C16`
+- `FEISHU_WEEKLY_RECEIVE_ID`: 接收人或群聊 id
+- `FEISHU_WEEKLY_RECEIVE_ID_TYPE`: `open_id`、`user_id`、`union_id`、`email`、`chat_id`，默认 `user_id`
+- `FEISHU_WEEKLY_TITLE`: 消息标题，默认 `项目进展`
+- `FEISHU_WEEKLY_MESSAGE_FORMAT`: `post` 或 `card`，默认 `card`
+- `FEISHU_WEEKLY_SHOW_ALL_MILESTONES`: 是否展示全部里程碑，默认 `false`
+- `FEISHU_WEEKLY_DEBUG`: 是否输出调试日志，默认 `false`
+
 ## 注意
 
 飞书客户端对 `post` 消息里的 `md` 表格渲染能力可能受客户端版本影响。建议优先使用 `--message-format card`，卡片模式会用固定比例列布局渲染表格：项目名称、当前在做、里程碑三列比例为 `3:3:5`，避免不同行因为内容长短不同而错位。
-
-当前目录本身不是 Git 仓库。如果要发布到 GitHub，需要先提供一个空仓库地址，或者在 GitHub 上创建仓库后把远端地址配置到这里。
