@@ -173,6 +173,42 @@ FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
 
 脚本会逐个工号发送私聊消息；其中任意一次发送失败，脚本会返回失败，方便从日志里排查。
 
+## 通讯录缓存
+
+如果不确定哪些工号是飞书消息接口认可的 `user_id`，可以先拉取通讯录并保存到本地缓存。缓存默认文件名是 `contacts_cache.json`，已加入 `.gitignore`，不会提交到 GitHub。
+
+先确认飞书应用已经开通通讯录读取权限，并且应用可见范围包含目标用户。然后在服务器脚本目录执行：
+
+```sh
+python3 contact_cache.py --env-file .env.local --output contacts_cache.json --debug
+```
+
+如果成功，会输出缓存人数：
+
+```json
+{
+  "mode": "cached",
+  "path": "contacts_cache.json",
+  "users": 123
+}
+```
+
+启用缓存解析：
+
+```env
+FEISHU_CONTACT_CACHE_ENABLED=true
+FEISHU_CONTACT_CACHE_PATH=contacts_cache.json
+```
+
+启用后，`FEISHU_WEEKLY_RECEIVE_IDS` 可以填缓存里能匹配到的姓名、工号、邮箱、手机号、`open_id` 或 `user_id`。脚本会解析成 `FEISHU_WEEKLY_RECEIVE_ID_TYPE` 指定的 ID 类型后再发送：
+
+```env
+FEISHU_WEEKLY_RECEIVE_IDS=王康旭,12139762,person@example.com
+FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
+```
+
+通讯录不需要每次发送都拉取。人员变化后，手动重新执行一次 `contact_cache.py` 刷新缓存即可。
+
 ## 部署到服务器
 
 服务器上建议直接用 GitHub 拉代码，然后用 cron 每周一下午 2 点调用 `weekly_send.py`。
@@ -180,8 +216,10 @@ FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
 首次部署：
 
 ```sh
-git clone git@github.com:kxwang5180-star/procurement-tool.git
-cd procurement-tool/feishu-sheet-post-sender
+git clone --filter=blob:none --sparse git@github.com:kxwang5180-star/tools.git feishu-milestone-send
+cd feishu-milestone-send
+git sparse-checkout set feishu-sheet-post-sender
+cd feishu-sheet-post-sender
 cp .env.example .env.local
 ```
 
@@ -190,14 +228,14 @@ cp .env.example .env.local
 以后更新代码：
 
 ```sh
-cd /path/to/procurement-tool
+cd /path/to/feishu-milestone-send
 git pull
 ```
 
 在服务器上先确认 Python 和手动发送可用：
 
 ```sh
-cd /path/to/procurement-tool/feishu-sheet-post-sender
+cd /path/to/feishu-milestone-send/feishu-sheet-post-sender
 python3 weekly_send.py
 ```
 
@@ -210,7 +248,7 @@ crontab -e
 加入一行：
 
 ```cron
-0 14 * * 1 cd /path/to/procurement-tool/feishu-sheet-post-sender && /usr/bin/python3 weekly_send.py >> weekly_send.log 2>&1
+0 14 * * 1 cd /path/to/feishu-milestone-send/feishu-sheet-post-sender && /usr/bin/python3 weekly_send.py >> weekly_send.log 2>&1
 ```
 
 注意服务器 cron 使用服务器本地时区。先在服务器执行 `date` 确认时区；如果不是中国时间，需要调整 cron 时间或设置服务器时区。
@@ -247,6 +285,11 @@ crontab -e
 - `FEISHU_WEEKLY_MESSAGE_FORMAT`: `post` 或 `card`，默认 `card`
 - `FEISHU_WEEKLY_SHOW_ALL_MILESTONES`: 是否展示全部里程碑，默认 `false`
 - `FEISHU_WEEKLY_DEBUG`: 是否输出调试日志，默认 `false`
+- `FEISHU_CONTACT_CACHE_ENABLED`: 是否启用通讯录缓存解析，默认 `false`
+- `FEISHU_CONTACT_CACHE_PATH`: 通讯录缓存文件路径，默认 `contacts_cache.json`
+- `FEISHU_CONTACT_DEPARTMENT_ID`: 拉取通讯录的部门 ID，默认 `0`
+- `FEISHU_CONTACT_DEPARTMENT_ID_TYPE`: 部门 ID 类型，默认 `department_id`
+- `FEISHU_CONTACT_PAGE_SIZE`: 每页拉取人数，默认 `50`
 
 ## 注意
 

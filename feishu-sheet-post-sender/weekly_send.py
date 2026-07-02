@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import List
 
+import contact_cache
 import feishu_sheet_post_sender as sender
 
 
@@ -38,6 +39,16 @@ def receive_ids_from_env() -> List[str]:
     if not receive_ids:
         raise ValueError("Missing required environment variable: FEISHU_WEEKLY_RECEIVE_ID or FEISHU_WEEKLY_RECEIVE_IDS")
     return receive_ids
+
+
+def resolved_receive_ids_from_env() -> List[str]:
+    receive_ids = receive_ids_from_env()
+    if not env_bool("FEISHU_CONTACT_CACHE_ENABLED"):
+        return receive_ids
+    cache_path = env_value("FEISHU_CONTACT_CACHE_PATH", contact_cache.DEFAULT_CACHE_PATH)
+    cache = contact_cache.load_cache(cache_path)
+    receive_id_type = env_value("FEISHU_WEEKLY_RECEIVE_ID_TYPE", "user_id")
+    return [contact_cache.resolve_receive_id(cache, receive_id, receive_id_type) for receive_id in receive_ids]
 
 
 def build_sender_args(receive_id: str) -> List[str]:
@@ -74,7 +85,7 @@ def run_from_env() -> int:
         print("weekly send skipped: FEISHU_WEEKLY_SEND_ENABLED is not true")
         return 0
     try:
-        for receive_id in receive_ids_from_env():
+        for receive_id in resolved_receive_ids_from_env():
             result = sender.main(build_sender_args(receive_id))
             if result != 0:
                 return result

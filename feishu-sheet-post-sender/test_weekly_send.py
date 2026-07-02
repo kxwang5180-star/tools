@@ -75,6 +75,37 @@ class WeeklySendTests(unittest.TestCase):
         self.assertEqual(sender_main.call_args_list[0][0][0][7], "12139762")
         self.assertEqual(sender_main.call_args_list[1][0][0][7], "12345678")
 
+    def test_enabled_resolves_receive_ids_from_contact_cache(self):
+        env = {
+            "FEISHU_WEEKLY_SEND_ENABLED": "true",
+            "FEISHU_WEEKLY_ENV_FILE": ".env.local",
+            "FEISHU_WEEKLY_SHEET_URL": "https://tenant.feishu.cn/wiki/node?sheet=abc",
+            "FEISHU_WEEKLY_RANGE": "A1:C16",
+            "FEISHU_WEEKLY_RECEIVE_IDS": "王康旭, E001",
+            "FEISHU_WEEKLY_RECEIVE_ID_TYPE": "user_id",
+            "FEISHU_WEEKLY_TITLE": "项目进展",
+            "FEISHU_WEEKLY_MESSAGE_FORMAT": "card",
+            "FEISHU_CONTACT_CACHE_ENABLED": "true",
+            "FEISHU_CONTACT_CACHE_PATH": "contacts_cache.json",
+        }
+        cache = {
+            "users": [
+                {
+                    "name": "王康旭",
+                    "user_id": "12139762",
+                    "employee_no": "E001",
+                }
+            ]
+        }
+
+        with patch.dict(os.environ, env, clear=True), patch.object(weekly_send.contact_cache, "load_cache", return_value=cache), patch.object(weekly_send.sender, "main", return_value=0) as sender_main:
+            result = weekly_send.run_from_env()
+
+        self.assertEqual(result, 0)
+        self.assertEqual(sender_main.call_count, 2)
+        self.assertEqual(sender_main.call_args_list[0][0][0][7], "12139762")
+        self.assertEqual(sender_main.call_args_list[1][0][0][7], "12139762")
+
 
 if __name__ == "__main__":
     unittest.main()
