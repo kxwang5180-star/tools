@@ -743,6 +743,7 @@ class FeishuClient:
             "POST",
             "/open-apis/contact/v3/users/batch_get_id",
             token=tenant_token,
+            query={"user_id_type": receive_id_type},
             body=body,
         )
         return extract_user_id(data, receive_id_type)

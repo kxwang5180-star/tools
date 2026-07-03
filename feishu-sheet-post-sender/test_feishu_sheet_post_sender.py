@@ -257,6 +257,25 @@ class FeishuSheetPostSenderTests(unittest.TestCase):
         with self.assertRaises(sender.FeishuApiError):
             sender.extract_user_id({"code": 0, "data": {"user_list": []}}, "open_id")
 
+    def test_lookup_user_id_requests_selected_id_type(self):
+        class FakeClient(sender.FeishuClient):
+            def __init__(self):
+                super().__init__("app", "secret")
+                self.query = None
+                self.body = None
+
+            def request(self, method, path, token="", body=None, query=None):
+                self.query = query
+                self.body = body
+                return {"code": 0, "data": {"user_list": [{"email": "person@example.com", "open_id": "ou_123"}]}}
+
+        client = FakeClient()
+        user_id = client.lookup_user_id("tenant", receive_id_type="open_id", email="person@example.com")
+
+        self.assertEqual(user_id, "ou_123")
+        self.assertEqual(client.query, {"user_id_type": "open_id"})
+        self.assertEqual(client.body, {"emails": ["person@example.com"]})
+
     def test_bitable_records_to_values_keeps_field_order_and_limit(self):
         values = sender.bitable_records_to_values(
             [
