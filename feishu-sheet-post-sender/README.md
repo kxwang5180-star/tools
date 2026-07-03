@@ -131,6 +131,8 @@ FEISHU_WEEKLY_RANGE=A1:C16
 FEISHU_WEEKLY_RECEIVE_ID=12139762
 FEISHU_WEEKLY_RECEIVE_IDS=
 FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
+FEISHU_WEEKLY_RECIPIENTS=
+FEISHU_WEEKLY_EMAIL_LOOKUP_ID_TYPE=open_id
 FEISHU_WEEKLY_TITLE=项目进展
 FEISHU_WEEKLY_MESSAGE_FORMAT=card
 FEISHU_WEEKLY_SHOW_ALL_MILESTONES=false
@@ -172,6 +174,21 @@ FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
 ```
 
 脚本会逐个工号发送私聊消息；其中任意一次发送失败，脚本会返回失败，方便从日志里排查。
+
+如果不同收件人拿到的是不同 ID 类型，使用 `FEISHU_WEEKLY_RECIPIENTS`。它优先于 `FEISHU_WEEKLY_RECEIVE_IDS`，每个收件人写成 `类型:值`：
+
+```env
+FEISHU_WEEKLY_RECIPIENTS=user_id:12139762,open_id:ou_d679f93ec1a87f1a40e87dac8ea152f3
+```
+
+也可以直接写邮箱或手机号，脚本会先调用飞书接口查询，再按 `FEISHU_WEEKLY_EMAIL_LOOKUP_ID_TYPE` 指定的 ID 类型发送：
+
+```env
+FEISHU_WEEKLY_RECIPIENTS=email:wangkx2@haidilao.com,email:zhaocs@haidilao.com
+FEISHU_WEEKLY_EMAIL_LOOKUP_ID_TYPE=open_id
+```
+
+如果飞书返回 `Feishu user record does not contain open_id`，说明当前应用权限或可见范围拿不到这个邮箱对应的 `open_id`；这时需要开通讯录相关权限，或者改用已知可用的 `user_id/open_id/union_id`。
 
 ## 通讯录缓存
 
@@ -281,6 +298,8 @@ crontab -e
 - `FEISHU_WEEKLY_RECEIVE_ID`: 单个接收人或群聊 id
 - `FEISHU_WEEKLY_RECEIVE_IDS`: 多个接收人 id，逗号分隔；设置后优先于 `FEISHU_WEEKLY_RECEIVE_ID`
 - `FEISHU_WEEKLY_RECEIVE_ID_TYPE`: `open_id`、`user_id`、`union_id`、`email`、`chat_id`，默认 `user_id`
+- `FEISHU_WEEKLY_RECIPIENTS`: 带类型的多个收件人，逗号分隔；例如 `user_id:12139762,open_id:ou_xxx,email:person@example.com`
+- `FEISHU_WEEKLY_EMAIL_LOOKUP_ID_TYPE`: `email:` 或 `mobile:` 收件人先查询成哪种 ID，默认 `open_id`
 - `FEISHU_WEEKLY_TITLE`: 消息标题，默认 `项目进展`
 - `FEISHU_WEEKLY_MESSAGE_FORMAT`: `post` 或 `card`，默认 `card`
 - `FEISHU_WEEKLY_SHOW_ALL_MILESTONES`: 是否展示全部里程碑，默认 `false`
