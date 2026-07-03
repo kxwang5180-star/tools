@@ -2,6 +2,8 @@
 
 读取一张飞书在线表格或知识库 Wiki 中的表格，生成项目进展消息，并用飞书应用机器人发送给一个联系人或群聊。支持 `msg_type: post` + `md` 标签，也支持飞书交互式卡片。
 
+服务器交接、常用命令和排障步骤见 [HANDOFF.md](HANDOFF.md)。
+
 ## 准备
 
 飞书应用需要具备：
@@ -128,10 +130,7 @@ FEISHU_WEEKLY_SEND_ENABLED=false
 FEISHU_WEEKLY_ENV_FILE=.env.local
 FEISHU_WEEKLY_SHEET_URL=https://haidilao.feishu.cn/wiki/XY6Uwdj8XiLGttkRkEmcCXUon9e?sheet=ec004f
 FEISHU_WEEKLY_RANGE=A1:C16
-FEISHU_WEEKLY_RECEIVE_ID=12139762
-FEISHU_WEEKLY_RECEIVE_IDS=
-FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
-FEISHU_WEEKLY_RECIPIENTS=
+FEISHU_WEEKLY_RECIPIENTS=user_id:12139762,email:yaoxy@haidilao.com,email:zhaocs@haidilao.com
 FEISHU_WEEKLY_EMAIL_LOOKUP_ID_TYPE=open_id
 FEISHU_WEEKLY_TITLE=项目进展
 FEISHU_WEEKLY_MESSAGE_FORMAT=card
@@ -153,29 +152,7 @@ python3 weekly_send.py
 
 如果 `FEISHU_WEEKLY_SEND_ENABLED=false`，脚本会输出跳过发送；如果为 `true`，脚本会按 `.env.local` 中的配置真正发送。
 
-单人发送时，收件人由 `FEISHU_WEEKLY_RECEIVE_ID` 和 `FEISHU_WEEKLY_RECEIVE_ID_TYPE` 决定。当前配置是按工号发送：
-
-```env
-FEISHU_WEEKLY_RECEIVE_ID=12139762
-FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
-```
-
-这等价于手动命令里的：
-
-```sh
---receive-id 12139762 --receive-id-type user_id
-```
-
-多人发送时，使用逗号分隔的 `FEISHU_WEEKLY_RECEIVE_IDS`。它会优先于单人的 `FEISHU_WEEKLY_RECEIVE_ID`：
-
-```env
-FEISHU_WEEKLY_RECEIVE_IDS=12139762,12345678,87654321
-FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
-```
-
-脚本会逐个工号发送私聊消息。某个收件人发送失败时，会继续发送后面的收件人，最后在日志中汇总失败项并返回失败码，方便从定时任务日志里排查。
-
-如果不同收件人拿到的是不同 ID 类型，使用 `FEISHU_WEEKLY_RECIPIENTS`。它优先于 `FEISHU_WEEKLY_RECEIVE_IDS`，每个收件人写成 `类型:值`：
+推荐使用 `FEISHU_WEEKLY_RECIPIENTS` 配置收件人。它支持不同 ID 类型混用，每个收件人写成 `类型:值`：
 
 ```env
 FEISHU_WEEKLY_RECIPIENTS=user_id:12139762,open_id:ou_d679f93ec1a87f1a40e87dac8ea152f3
@@ -187,6 +164,15 @@ FEISHU_WEEKLY_RECIPIENTS=user_id:12139762,open_id:ou_d679f93ec1a87f1a40e87dac8ea
 FEISHU_WEEKLY_RECIPIENTS=email:wangkx2@haidilao.com,email:zhaocs@haidilao.com
 FEISHU_WEEKLY_EMAIL_LOOKUP_ID_TYPE=open_id
 ```
+
+兼容旧配置仍然可用，但不推荐新配置继续使用。旧配置要求所有收件人使用同一种 ID 类型：
+
+```env
+FEISHU_WEEKLY_RECEIVE_IDS=12139762,12345678,87654321
+FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
+```
+
+脚本会逐个收件人发送私聊消息。某个收件人发送失败时，会继续发送后面的收件人，最后在日志中汇总失败项并返回失败码，方便从定时任务日志里排查。
 
 如果飞书返回 `Feishu user record does not contain open_id`，说明当前应用权限或可见范围拿不到这个邮箱对应的 `open_id`；这时需要开通讯录相关权限，或者改用已知可用的 `user_id/open_id/union_id`。这个收件人会被记录为失败，其他收件人仍会继续发送。
 
