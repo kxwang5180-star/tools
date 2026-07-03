@@ -116,6 +116,24 @@ def resolved_recipients_from_env() -> List[Tuple[str, str]]:
     return [(receive_id_type, contact_cache.resolve_receive_id(cache, receive_id, receive_id_type)) for receive_id in receive_ids]
 
 
+def raw_recipients_from_env() -> List[Tuple[str, str]]:
+    typed_recipients = typed_recipients_from_env()
+    if typed_recipients:
+        return typed_recipients
+    receive_id_type = env_value("FEISHU_WEEKLY_RECEIVE_ID_TYPE", "user_id")
+    return [(receive_id_type, receive_id) for receive_id in receive_ids_from_env()]
+
+
+def resolve_raw_recipient(receive_id_type: str, receive_id: str) -> Tuple[str, str]:
+    if typed_recipients_from_env():
+        return resolve_typed_recipient(receive_id_type, receive_id)
+    if env_bool("FEISHU_CONTACT_CACHE_ENABLED"):
+        cache_path = env_value("FEISHU_CONTACT_CACHE_PATH", contact_cache.DEFAULT_CACHE_PATH)
+        cache = contact_cache.load_cache(cache_path)
+        return receive_id_type, contact_cache.resolve_receive_id(cache, receive_id, receive_id_type)
+    return receive_id_type, receive_id
+
+
 def build_sender_args(receive_id: str, receive_id_type: str) -> List[str]:
     env_file = env_value("FEISHU_WEEKLY_ENV_FILE", ".env.local")
     args = [
@@ -149,15 +167,21 @@ def run_from_env() -> int:
     if not env_bool("FEISHU_WEEKLY_SEND_ENABLED"):
         print("weekly send skipped: FEISHU_WEEKLY_SEND_ENABLED is not true")
         return 0
-    try:
-        for receive_id_type, receive_id in resolved_recipients_from_env():
+    failures = []
+    for raw_receive_id_type, raw_receive_id in raw_recipients_from_env():
+        try:
+            receive_id_type, receive_id = resolve_raw_recipient(raw_receive_id_type, raw_receive_id)
             result = sender.main(build_sender_args(receive_id, receive_id_type))
             if result != 0:
-                return result
-        return 0
-    except ValueError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+                failures.append("%s:%s send failed with exit code %s" % (raw_receive_id_type, raw_receive_id, result))
+        except Exception as exc:
+            failures.append("%s:%s %s" % (raw_receive_id_type, raw_receive_id, exc))
+    if failures:
+        print("weekly send completed with failures:", file=sys.stderr)
+        for failure in failures:
+            print("- %s" % failure, file=sys.stderr)
         return 1
+    return 0
 
 
 def main() -> int:

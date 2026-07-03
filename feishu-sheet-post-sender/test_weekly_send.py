@@ -148,6 +148,44 @@ class WeeklySendTests(unittest.TestCase):
         self.assertEqual(sender_main.call_args_list[0][0][0][7], "ou_123")
         self.assertEqual(sender_main.call_args_list[0][0][0][9], "open_id")
 
+    def test_continues_when_one_typed_recipient_fails_to_send(self):
+        env = {
+            "FEISHU_WEEKLY_SEND_ENABLED": "true",
+            "FEISHU_WEEKLY_ENV_FILE": ".env.local",
+            "FEISHU_WEEKLY_SHEET_URL": "https://tenant.feishu.cn/wiki/node?sheet=abc",
+            "FEISHU_WEEKLY_RANGE": "A1:C16",
+            "FEISHU_WEEKLY_RECIPIENTS": "user_id:bad, user_id:good",
+            "FEISHU_WEEKLY_TITLE": "项目进展",
+            "FEISHU_WEEKLY_MESSAGE_FORMAT": "card",
+        }
+
+        with patch.dict(os.environ, env, clear=True), patch.object(weekly_send.sender, "main", side_effect=[1, 0]) as sender_main:
+            result = weekly_send.run_from_env()
+
+        self.assertEqual(result, 1)
+        self.assertEqual(sender_main.call_count, 2)
+        self.assertEqual(sender_main.call_args_list[0][0][0][7], "bad")
+        self.assertEqual(sender_main.call_args_list[1][0][0][7], "good")
+
+    def test_continues_when_one_email_recipient_cannot_be_resolved(self):
+        env = {
+            "FEISHU_WEEKLY_SEND_ENABLED": "true",
+            "FEISHU_WEEKLY_ENV_FILE": ".env.local",
+            "FEISHU_WEEKLY_SHEET_URL": "https://tenant.feishu.cn/wiki/node?sheet=abc",
+            "FEISHU_WEEKLY_RANGE": "A1:C16",
+            "FEISHU_WEEKLY_RECIPIENTS": "email:bad@example.com, user_id:12139762",
+            "FEISHU_WEEKLY_TITLE": "项目进展",
+            "FEISHU_WEEKLY_MESSAGE_FORMAT": "card",
+        }
+
+        with patch.dict(os.environ, env, clear=True), patch.object(weekly_send, "lookup_recipient_by_email", side_effect=ValueError("not found")), patch.object(weekly_send.sender, "main", return_value=0) as sender_main:
+            result = weekly_send.run_from_env()
+
+        self.assertEqual(result, 1)
+        sender_main.assert_called_once()
+        self.assertEqual(sender_main.call_args_list[0][0][0][7], "12139762")
+        self.assertEqual(sender_main.call_args_list[0][0][0][9], "user_id")
+
 
 if __name__ == "__main__":
     unittest.main()

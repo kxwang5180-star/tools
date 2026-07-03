@@ -173,7 +173,7 @@ FEISHU_WEEKLY_RECEIVE_IDS=12139762,12345678,87654321
 FEISHU_WEEKLY_RECEIVE_ID_TYPE=user_id
 ```
 
-脚本会逐个工号发送私聊消息；其中任意一次发送失败，脚本会返回失败，方便从日志里排查。
+脚本会逐个工号发送私聊消息。某个收件人发送失败时，会继续发送后面的收件人，最后在日志中汇总失败项并返回失败码，方便从定时任务日志里排查。
 
 如果不同收件人拿到的是不同 ID 类型，使用 `FEISHU_WEEKLY_RECIPIENTS`。它优先于 `FEISHU_WEEKLY_RECEIVE_IDS`，每个收件人写成 `类型:值`：
 
@@ -188,7 +188,7 @@ FEISHU_WEEKLY_RECIPIENTS=email:wangkx2@haidilao.com,email:zhaocs@haidilao.com
 FEISHU_WEEKLY_EMAIL_LOOKUP_ID_TYPE=open_id
 ```
 
-如果飞书返回 `Feishu user record does not contain open_id`，说明当前应用权限或可见范围拿不到这个邮箱对应的 `open_id`；这时需要开通讯录相关权限，或者改用已知可用的 `user_id/open_id/union_id`。
+如果飞书返回 `Feishu user record does not contain open_id`，说明当前应用权限或可见范围拿不到这个邮箱对应的 `open_id`；这时需要开通讯录相关权限，或者改用已知可用的 `user_id/open_id/union_id`。这个收件人会被记录为失败，其他收件人仍会继续发送。
 
 ## 通讯录缓存
 
